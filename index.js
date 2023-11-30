@@ -27,13 +27,11 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-    const deliveryManCollection = client
-      .db("parcelAppBD")
-      .collection("deliveryMan");
+
     const userCollection = client.db("parcelAppBD").collection("users");
     const bookingCollection = client.db("parcelAppBD").collection("bookings");
 
-    // JWT related API
+    // jwt related api
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.SECRET_TOKEN, {
@@ -44,7 +42,7 @@ async function run() {
 
     // middlewares
     const verifyToken = (req, res, next) => {
-      // console.log("inside verify token", req.headers.authorization);
+      // console.log('inside verify token', req.headers.authorization);
       if (!req.headers.authorization) {
         return res.status(401).send({ message: "unauthorized access" });
       }
@@ -70,103 +68,23 @@ async function run() {
       next();
     };
 
-    // Delivery Man Api
-    app.get("/deliveryMan", async (req, res) => {
-      const result = await deliveryManCollection.find().toArray();
-      res.send(result);
-    });
 
-    // user related api
-    app.get("/users", async (req, res) => {
+
+    // users related api
+    app.get("/users",verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
 
-    app.get("/users/:email", verifyToken, async (req, res) => {
+
+    app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
       const query = { email: email };
-      const result = await userCollection.findOne(query);
+      const result = await userCollection.find(query).toArray();
       res.send(result);
     });
 
-    // user profile
-    app.patch("/users/:email", async (req, res) => {
-      const item = req.body;
-      const email = req.params.email;
-      const filter = { email: email };
-      const updatedDoc = {
-        $set: {
-          image: item.image,
-        },
-      };
-      const result = await userCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
-
-    // Parcel related data
-    app.post("/bookings", async (req, res) => {
-      const booking = req.body;
-      const result = await bookingCollection.insertOne(booking);
-      res.send(result);
-    });
-
-    app.get("/bookings", async (req, res) => {
-      const result = await bookingCollection.find().toArray();
-      res.send(result);
-    });
-
-    app.get("/bookings/:email", verifyToken, async (req, res) => {
-      const email = req.params.email;
-      const query = { email: email };
-      const result = await bookingCollection.find(query).toArray();
-      res.send(result);
-    });
-
-    app.get("/bookings/:id", async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingCollection.findOne(query);
-      res.send(result);
-    });
-    // Update bookings
-    app.patch("/bookings/:id", async (req, res) => {
-      const item = req.body;
-      const id = req.params.id;
-      const filter = { _id: new ObjectId(id) };
-      const updatedDoc = {
-        $set: {
-          parcelType: item.parcelType,
-          requestedDeliveryDate: item.requestedDeliveryDate,
-          deliveryAddressLatitude: item.deliveryAddressLatitude,
-          price: item.price,
-          phoneNumber: item.phoneNumber,
-          receiverName: item.receiverName,
-          receiverPhoneNumber: item.receiverPhoneNumber,
-          parcelDeliveryAddress: item.parcelDeliveryAddress,
-          deliveryAddressLongitude: item.deliveryAddressLongitude,
-          parcelWeight: item.parcelWeight,
-        },
-      };
-      const result = await bookingCollection.updateOne(filter, updatedDoc);
-      res.send(result);
-    });
-
-    app.delete("/bookings/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingCollection.deleteOne(query);
-      res.send(result);
-    });
-
-    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await userCollection.deleteOne(query);
-      res.send(result);
-    });
-
-    // Admin
-    app.get("/users/admin/:email", verifyToken,verifyAdmin, async (req, res) => {
+    app.get("/users/admin/:email", verifyToken, async (req, res) => {
       const email = req.params.email;
 
       if (email !== req.decoded.email) {
@@ -193,22 +111,180 @@ async function run() {
       res.send(result);
     });
 
-    // app.patch(
-    //   "/users/admin/:id",
-    //   verifyToken,
-    //   verifyAdmin,
-    //   async (req, res) => {
-    //     const id = req.params.id;
-    //     const filter = { _id: new ObjectId(id) };
-    //     const updatedDoc = {
-    //       $set: {
-    //         role: "admin",
-    //       },
-    //     };
-    //     const result = await userCollection.updateOne(filter, updatedDoc);
-    //     res.send(result);
-    //   }
-    // );
+    // user profile
+    app.patch("/users/:email", async (req, res) => {
+      const item = req.body;
+      const email = req.params.email;
+      const filter = { email: email };
+      const updatedDoc = {
+        $set: {
+          image: item.image,
+        },
+      };
+      const result = await userCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    // Parcel related data
+    app.post("/bookings", async (req, res) => {
+      const booking = req.body;
+      const result = await bookingCollection.insertOne(booking);
+      res.send(result);
+    });
+
+    // Retrieve a booking by ID
+    app.get("/bookings/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.findOne(query);
+      res.send(result);
+    });
+
+    // Retrieve all bookings with authentication
+    app.get("/bookings", verifyToken, async (req, res) => {
+      const result = await bookingCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Retrieve bookings by email
+    app.get("/bookings", async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
+    });
+
+
+    // Update bookings
+    app.patch("/bookings/:id", async (req, res) => {
+      const item = req.body;
+      const id = req.params.id;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          parcelType: item.parcelType,
+          requestedDeliveryDate: item.requestedDeliveryDate,
+          deliveryAddressLatitude: item.deliveryAddressLatitude,
+          price: item.price,
+          deliveryManId: item.deliveryManId,
+          phoneNumber: item.phoneNumber,
+          receiverName: item.receiverName,
+          receiverPhoneNumber: item.receiverPhoneNumber,
+          parcelDeliveryAddress: item.parcelDeliveryAddress,
+          deliveryAddressLongitude: item.deliveryAddressLongitude,
+          parcelWeight: item.parcelWeight,
+        },
+      };
+      const result = await bookingCollection.updateOne(filter, updatedDoc);
+      res.send(result);
+    });
+
+    // Update status and deliveryManId of a booking
+    app.patch("/bookings/update-status/:id", async (req, res) => {
+      try {
+        const { status, deliveryManId } = req.body;
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+
+        const updatedDoc = {
+          $set: {
+            status: status,
+            deliveryManId: deliveryManId,
+          },
+        };
+
+        const result = await bookingCollection.updateOne(filter, updatedDoc);
+
+        res.send(result);
+      } catch (error) {
+        console.error(
+          "Error updating booking status and deliveryManId:",
+          error
+        );
+        res.status(500).send({ message: "Internal server error" });
+      }
+    });
+
+    app.delete("/bookings/:id", verifyToken, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await bookingCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // Admin
+    app.get(
+      "/users/admin/:email",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const email = req.params.email;
+
+        if (email !== req.decoded.email) {
+          return res.status(403).send({ message: "forbidden access" });
+        }
+
+        const query = { email: email };
+        const user = await userCollection.findOne(query);
+        let admin = false;
+        if (user) {
+          admin = user?.role === "admin";
+        }
+        res.send({ admin });
+      }
+    );
+
+    app.post("/users", async (req, res) => {
+      const user = req.body;
+      const query = { email: user.email };
+      const existingUser = await userCollection.findOne(query);
+      if (existingUser) {
+        return res.send({ message: "user already exists", insertedId: null });
+      }
+      const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.patch(
+      "/users/deliveryMan/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "deliveryMan",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
+
+    app.patch(
+      "/users/admin/:id",
+      verifyToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedDoc = {
+          $set: {
+            role: "admin",
+          },
+        };
+        const result = await userCollection.updateOne(filter, updatedDoc);
+        res.send(result);
+      }
+    );
 
     // Delivery Man
     app.get("/users/deliveryMan/:email", verifyToken, async (req, res) => {
@@ -226,23 +302,6 @@ async function run() {
       }
       res.send({ deliveryMan });
     });
-
-    app.patch(
-      "/users/admin/:id",
-      verifyToken,
-      verifyAdmin,
-      async (req, res) => {
-        const id = req.params.id;
-        const filter = { _id: new ObjectId(id) };
-        const updatedDoc = {
-          $set: {
-            role: "deliveryMan",
-          },
-        };
-        const result = await userCollection.updateOne(filter, updatedDoc);
-        res.send(result);
-      }
-    );
 
     // Payment
     // app.post("/create-payment-intent", async (req, res) => {
@@ -281,6 +340,31 @@ async function run() {
     //   const deleteResult = await cartCollection.deleteMany(query);
     //   res.send({ paymentResult, deleteResult });
     // });
+
+    app.get("/app-statistics", async (req, res) => {
+      const bookedParcels = await bookingCollection.countDocuments();
+      const deliveredParcels = await bookingCollection.countDocuments({
+        status: "delivered",
+      });
+      const registeredUsers = await userCollection.countDocuments();
+
+      res.send({
+        bookedParcels,
+        deliveredParcels,
+        registeredUsers,
+      });
+    });
+
+    // Admin Related Api
+    app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+      const users = await userCollection.estimatedDocumentCount();
+      const bookings = await bookingCollection.estimatedDocumentCount();
+
+      res.send({
+        users,
+        bookings,
+      });
+    });
 
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
