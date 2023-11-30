@@ -27,9 +27,10 @@ async function run() {
     // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
 
-
     const userCollection = client.db("parcelAppBD").collection("users");
     const bookingCollection = client.db("parcelAppBD").collection("bookings");
+    const reviewCollection = client.db("parcelAppBD").collection("reviews");
+    const paymentCollection = client.db("parcelAppBD").collection("payments");
 
     // jwt related api
     app.post("/jwt", async (req, res) => {
@@ -68,14 +69,11 @@ async function run() {
       next();
     };
 
-
-
     // users related api
-    app.get("/users",verifyToken, async (req, res) => {
+    app.get("/users", verifyToken, async (req, res) => {
       const result = await userCollection.find().toArray();
       res.send(result);
     });
-
 
     app.get("/users/:email", async (req, res) => {
       const email = req.params.email;
@@ -132,6 +130,25 @@ async function run() {
       res.send(result);
     });
 
+    // Add this after your existing routes
+
+    // Retrieve all bookings (accessible only by admin)
+
+    app.get("/bookings", async (req, res) => {
+      const result = await bookingCollection.find().toArray();
+      res.send(result);
+    });
+
+    // Retrieve bookings by email
+    app.get("/bookings", verifyToken, async (req, res) => {
+      const email = req.query.email;
+      const query = { email: email };
+      const result = await bookingCollection.find(query).toArray();
+      res.send(result);
+    });
+
+
+
     // Retrieve a booking by ID
     app.get("/bookings/:id", async (req, res) => {
       const id = req.params.id;
@@ -140,20 +157,41 @@ async function run() {
       res.send(result);
     });
 
-    // Retrieve all bookings with authentication
     app.get("/bookings", verifyToken, async (req, res) => {
-      const result = await bookingCollection.find().toArray();
-      res.send(result);
-    });
+      const user = req.user; // Assuming your authentication middleware adds the user to the request
 
-    // Retrieve bookings by email
-    app.get("/bookings", async (req, res) => {
-      const email = req.query.email;
-      const query = { email: email };
+      const query = { email: user.email };
       const result = await bookingCollection.find(query).toArray();
       res.send(result);
     });
 
+    app.get("/bookings", verifyToken, async (req, res) => {
+      try {
+        const startDate = req.query.startDate;
+        const endDate = req.query.endDate;
+
+        let dateFilter = {};
+
+        // Add date range filtering if both startDate and endDate are provided
+        if (startDate && endDate) {
+          dateFilter = {
+            deliveryDate: {
+              $gte: new Date(startDate),
+              $lte: new Date(endDate),
+            },
+          };
+        }
+
+        // Merge date filter with other existing filters if any
+        const filters = { ...dateFilter /* Add other filters if needed */ };
+
+        const result = await bookingCollection.find(filters).toArray();
+        res.send(result);
+      } catch (error) {
+        console.error(error);
+        res.status(500).send("Internal Server Error");
+      }
+    });
 
     // Update bookings
     app.patch("/bookings/:id", async (req, res) => {
@@ -220,6 +258,7 @@ async function run() {
     });
 
     // Admin
+
     app.get(
       "/users/admin/:email",
       verifyToken,
@@ -249,6 +288,19 @@ async function run() {
         return res.send({ message: "user already exists", insertedId: null });
       }
       const result = await userCollection.insertOne(user);
+      res.send(result);
+    });
+
+    app.post("/reviews", async (req, res) => {
+      const review = req.body;
+      const result = await reviewCollection.insertOne(review);
+      res.send(result);
+    });
+
+    app.get("/reviews", async (req, res) => {
+      const email = req.params.email;
+      const query = { email: email };
+      const result = await reviewCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -303,43 +355,43 @@ async function run() {
       res.send({ deliveryMan });
     });
 
-    // Payment
-    // app.post("/create-payment-intent", async (req, res) => {
-    //   const { price } = req.body;
-    //   const amount = parseInt(price * 100);
+    Payment;
+    app.post("/create-payment-intent", async (req, res) => {
+      const { price } = req.body;
+      const amount = parseInt(price * 100);
 
-    //   const paymentIntent = await stripe.paymentIntents.create({
-    //     amount: amount,
-    //     currency: "usd",
-    //     payment_method_types: ["card"],
-    //   });
+      const paymentIntent = await stripe.paymentIntents.create({
+        amount: amount,
+        currency: "usd",
+        payment_method_types: ["card"],
+      });
 
-    //   res.send({
-    //     clientSecret: paymentIntent.client_secret,
-    //   });
-    // });
+      res.send({
+        clientSecret: paymentIntent.client_secret,
+      });
+    });
 
-    // app.get("/payments/:email", verifyToken, async (req, res) => {
-    //   const query = { email: req.params.email };
-    //   if(req.params.email !== req.decoded.email){
-    //     res.status(403).send({message: 'forbidden access'})
-    //   }
-    //   const result = await paymentCollection.find(query).toArray();
-    //   res.send(result);
-    // });
+    app.get("/payments/:email", verifyToken, async (req, res) => {
+      const query = { email: req.params.email };
+      if (req.params.email !== req.decoded.email) {
+        res.status(403).send({ message: "forbidden access" });
+      }
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    });
 
-    // // Payment related API
-    // app.post("/payments", async (req, res) => {
-    //   const payment = req.body;
-    //   const paymentResult = await paymentCollection.insertOne(payment);
-    //   const query = {
-    //     _id: {
-    //       $in: payment.cartIds.map((id) => new ObjectId(id)),
-    //     },
-    //   };
-    //   const deleteResult = await cartCollection.deleteMany(query);
-    //   res.send({ paymentResult, deleteResult });
-    // });
+    // Payment related API
+    app.post("/payments", async (req, res) => {
+      const payment = req.body;
+      const paymentResult = await paymentCollection.insertOne(payment);
+      const query = {
+        _id: {
+          $in: payment.cartIds.map((id) => new ObjectId(id)),
+        },
+      };
+      const deleteResult = await bookingCollection.deleteMany(query);
+      res.send({ paymentResult, deleteResult });
+    });
 
     app.get("/app-statistics", async (req, res) => {
       const bookedParcels = await bookingCollection.countDocuments();
