@@ -205,19 +205,7 @@ async function run() {
       }
     });
 
-    app.delete("/bookings/:id", verifyToken, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await bookingCollection.deleteOne(query);
-      res.send(result);
-    });
-
-    app.delete("/users/:id", verifyToken, verifyAdmin, async (req, res) => {
-      const id = req.params.id;
-      const query = { _id: new ObjectId(id) };
-      const result = await userCollection.deleteOne(query);
-      res.send(result);
-    });
+  
 
     // Admin
     app.get(
